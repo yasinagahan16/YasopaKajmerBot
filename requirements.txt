@@ -12,7 +12,7 @@ requests
 syncedlyrics
 lyricsgenius
 playwright
-python-dotenv  # <-- NEW
+python-dotenv  
 
 # Utilities
 cachetools
