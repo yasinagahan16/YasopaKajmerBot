@@ -2899,9 +2899,16 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
         return await run_ydl_with_low_priority(ydl_opts, query)
     except yt_dlp.utils.DownloadError as e:
         error_str = str(e).lower()
-        # Check for age restriction errors
-        if "sign in to confirm your age" in error_str or "age-restricted" in error_str:
-            logger.warning(f"Age restriction detected for '{query[:100]}'. Retrying with cookies.")
+        cookie_required_error = (
+            "sign in to confirm your age" in error_str
+            or "age-restricted" in error_str
+            or "sign in to confirm you're not a bot" in error_str
+            or "sign in to confirm you’re not a bot" in error_str
+            or "not a bot" in error_str
+            or "use --cookies" in error_str
+        )
+        if cookie_required_error:
+            logger.warning(f"YouTube cookie-gated content detected for '{query[:100]}'. Retrying with cookies.")
             
             cookies_to_try = AVAILABLE_COOKIES.copy()
             random.shuffle(cookies_to_try) # Shuffle to distribute load/bans
@@ -2915,7 +2922,7 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
                     continue # Try the next cookie
             
             # If all cookies failed, re-raise the original error
-            logger.error(f"All cookies failed for age-restricted content: '{query[:100]}'")
+            logger.error(f"All cookies failed for cookie-gated content: '{query[:100]}'")
             raise e
         else:
             # Not an age restriction error, re-raise it
@@ -4220,6 +4227,8 @@ def parse_yt_dlp_error(error_string: str) -> tuple[str, str, str]:
     error_lower = error_string.lower()
     if "sign in to confirm your age" in error_lower or "age-restricted" in error_lower:
         return ("🔞", "error_title_age_restricted", "error_desc_age_restricted")
+    if "sign in to confirm you're not a bot" in error_lower or "sign in to confirm you’re not a bot" in error_lower or "not a bot" in error_lower:
+        return ("🍪", "error_title_age_restricted", "error_desc_age_restricted")
     if "private video" in error_lower:
         return ("🔒", "error_title_private", "error_desc_private")
     if "video is unavailable" in error_lower:
