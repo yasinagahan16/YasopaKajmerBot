@@ -22,7 +22,13 @@ from typing import Optional
 import json
 import time
 import syncedlyrics
-import lyricsgenius
+try:
+    import lyricsgenius
+except ImportError as e:
+    lyricsgenius = None
+    _lyricsgenius_import_error = e
+else:
+    _lyricsgenius_import_error = None
 import psutil
 import time
 import datetime
@@ -101,7 +107,10 @@ logger = logging.getLogger(__name__)
 
 GENIUS_TOKEN = os.getenv("GENIUS_TOKEN")
 
-if GENIUS_TOKEN and GENIUS_TOKEN != "YOUR_GENIUS_TOKEN_HERE":
+if _lyricsgenius_import_error is not None:
+    genius = None
+    logger.warning(f"lyricsgenius import failed ({_lyricsgenius_import_error}). /lyrics and fallback will not work.")
+elif GENIUS_TOKEN and GENIUS_TOKEN != "YOUR_GENIUS_TOKEN_HERE":
     genius = lyricsgenius.Genius(GENIUS_TOKEN, verbose=False, remove_section_headers=True)
     logger.info("LyricsGenius client initialized.")
 else:
@@ -6628,4 +6637,8 @@ if __name__ == '__main__':
     bot.start_time = time.time()
     
     # Run the Discord bot with token from environment variables
-    bot.run(os.getenv("DISCORD_TOKEN"))
+    discord_token = os.getenv("DISCORD_TOKEN")
+    if not discord_token:
+        logger.error("DISCORD_TOKEN is missing. Set it in Render Environment before starting the bot.")
+        sys.exit(1)
+    bot.run(discord_token)
