@@ -982,6 +982,7 @@ messages = {
 intents = discord.Intents.default()
 intents.guilds = True
 intents.voice_states = True
+intents.message_content = True
 
 # Create the bot
 # --- Definition of our custom bot class ---
@@ -1001,6 +1002,7 @@ class YasopaKajmerBot(commands.Bot):
 intents = discord.Intents.default()
 intents.guilds = True
 intents.voice_states = True
+intents.message_content = True
 
 # Create the bot
 bot = YasopaKajmerBot(command_prefix="!", intents=intents)
