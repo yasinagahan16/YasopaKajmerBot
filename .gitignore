@@ -51,3 +51,6 @@ Thumbs.db
 DEPLOY_RENDER.md
 SECURITY.md
 SECURITY_CHECKLIST.md
+
+# Prevent accidental discord.py repo upload
+discord.py/
