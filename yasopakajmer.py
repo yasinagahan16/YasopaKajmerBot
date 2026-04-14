@@ -159,13 +159,38 @@ url_cache = TTLCache(maxsize=75000, ttl=7200)
 
 # --- Bot Configuration Dictionaries ---
 
-AVAILABLE_COOKIES = [
+DEFAULT_COOKIE_FILES = [
     "cookies_1.txt",
     "cookies_2.txt",
     "cookies_3.txt",
     "cookies_4.txt",
     "cookies_5.txt"
 ]
+
+def build_available_cookies() -> list[str]:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    available: list[str] = []
+
+    # 1) Normal local cookie files (cookies_1.txt ... cookies_5.txt)
+    for cookie_name in DEFAULT_COOKIE_FILES:
+        if os.path.exists(os.path.join(script_dir, cookie_name)):
+            available.append(cookie_name)
+
+    # 2) One-shot cookie injected from environment (Render-friendly)
+    env_cookie_content = os.getenv("YOUTUBE_COOKIES")
+    if env_cookie_content:
+        env_cookie_path = os.path.join(script_dir, "cookies_env.txt")
+        normalized = env_cookie_content.replace("\\r\\n", "\n").replace("\\n", "\n").strip()
+        with open(env_cookie_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(normalized + "\n")
+        available.insert(0, "cookies_env.txt")
+        logger.info("Loaded YouTube cookies from YOUTUBE_COOKIES environment variable.")
+
+    return available
+
+AVAILABLE_COOKIES = build_available_cookies()
+if not AVAILABLE_COOKIES:
+    logger.warning("No cookie files found. YouTube bot-check/age-restricted videos may fail.")
 
 # Dictionary of available audio filters and their FFmpeg options
 AUDIO_FILTERS = {
@@ -2911,6 +2936,9 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
             logger.warning(f"YouTube cookie-gated content detected for '{query[:100]}'. Retrying with cookies.")
             
             cookies_to_try = AVAILABLE_COOKIES.copy()
+            if not cookies_to_try:
+                logger.error("No cookie files are available. Set YOUTUBE_COOKIES or add cookies_1.txt...cookies_5.txt.")
+                raise e
             random.shuffle(cookies_to_try) # Shuffle to distribute load/bans
 
             for cookie_name in cookies_to_try:
