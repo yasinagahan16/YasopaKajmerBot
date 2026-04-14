@@ -54,3 +54,6 @@ SECURITY_CHECKLIST.md
 
 # Prevent accidental discord.py repo upload
 discord.py/
+
+# SQLite journal files
+*.db-journal
