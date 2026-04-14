@@ -1,6 +1,7 @@
 # Core Discord library and voice dependency
 git+https://github.com/Rapptz/discord.py
 PyNaCl
+davey
 
 # Web server (for Render keep-alive)
 Flask
@@ -20,3 +21,4 @@ python-dotenv
 # Utilities
 cachetools
 psutil
+static-ffmpeg

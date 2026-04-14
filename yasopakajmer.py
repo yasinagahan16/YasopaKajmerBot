@@ -46,6 +46,13 @@ from dotenv import load_dotenv
 # Import keep-alive server
 from keep_alive import start_keep_alive
 
+try:
+    import static_ffmpeg
+except ImportError:
+    static_ffmpeg = None
+else:
+    static_ffmpeg.add_paths()
+
 load_dotenv()
 
 def init_db():
