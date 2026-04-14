@@ -7,7 +7,7 @@ davey
 Flask
 
 # Audio/Video downloading
-yt_dlp
+yt-dlp
 curl-cffi
 certifi
 

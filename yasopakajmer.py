@@ -2942,7 +2942,7 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
     Fetches video info using yt-dlp, with a robust retry mechanism for age-restricted content.
     This is the new universal function for all online fetching.
     """
-    requested_impersonate = os.getenv("YTDLP_IMPERSONATE", "").strip()
+    requested_impersonate = os.getenv("YTDLP_IMPERSONATE", "chrome110").strip()
     base_ydl_opts = {
         "format": "bestaudio[acodec=opus]/bestaudio/best",
         "quiet": True,
