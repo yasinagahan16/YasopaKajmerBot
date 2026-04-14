@@ -1,8 +1,45 @@
+# Environment variables - DO NOT COMMIT
 .env
+.env.local
+.env.*.local
+
+# Logs
 logs/
+*.log
+
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.DS_Store
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
 .venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache
+.cache/
+.history/
+*.cache
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
