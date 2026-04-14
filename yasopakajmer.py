@@ -189,7 +189,7 @@ def build_available_cookies() -> list[str]:
             logger.error(f"Could not decode YOUTUBE_COOKIES_B64: {e}")
     if env_cookie_content:
         env_cookie_path = os.path.join(script_dir, "cookies_env.txt")
-        normalized = env_cookie_content.replace("\\r\\n", "\n").replace("\\n", "\n").strip()
+        normalized = env_cookie_content.replace("\\r\\n", "\n").replace("\\n", "\n").strip().strip("'").strip('"')
         if "netscape http cookie file" not in normalized.lower():
             logger.warning("YOUTUBE_COOKIES does not look like Netscape cookie format; yt-dlp may reject it.")
         with open(env_cookie_path, "w", encoding="utf-8", newline="\n") as f:
@@ -202,6 +202,23 @@ def build_available_cookies() -> list[str]:
 AVAILABLE_COOKIES = build_available_cookies()
 if not AVAILABLE_COOKIES:
     logger.warning("No cookie files found. YouTube bot-check/age-restricted videos may fail.")
+
+def build_ytdlp_extractor_args() -> dict | None:
+    clients_raw = os.getenv("YOUTUBE_PLAYER_CLIENTS", "web,android")
+    clients = [c.strip() for c in clients_raw.split(",") if c.strip()]
+    po_token = os.getenv("YOUTUBE_PO_TOKEN")
+
+    youtube_args = {}
+    if clients:
+        youtube_args["player_client"] = clients
+    if po_token:
+        youtube_args["po_token"] = [po_token.strip()]
+
+    if youtube_args:
+        return {"youtube": youtube_args}
+    return None
+
+YTDLP_EXTRACTOR_ARGS = build_ytdlp_extractor_args()
 
 # Dictionary of available audio filters and their FFmpeg options
 AUDIO_FILTERS = {
@@ -2929,10 +2946,22 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
         "format": "bestaudio[acodec=opus]/bestaudio/best",
         "quiet": True, "no_warnings": True, "no_color": True, "socket_timeout": 15,
     }
+    if YTDLP_EXTRACTOR_ARGS:
+        base_ydl_opts["extractor_args"] = YTDLP_EXTRACTOR_ARGS
     ydl_opts = {**base_ydl_opts, **(ydl_opts_override or {})}
 
+    if AVAILABLE_COOKIES:
+        cookies_to_try = AVAILABLE_COOKIES.copy()
+        random.shuffle(cookies_to_try)
+        for cookie_name in cookies_to_try:
+            try:
+                logger.info(f"Fetching info for '{query[:100]}' (cookie-first: {cookie_name}).")
+                return await run_ydl_with_low_priority(ydl_opts, query, specific_cookie_file=cookie_name)
+            except yt_dlp.utils.DownloadError as cookie_first_error:
+                logger.warning(f"Cookie-first attempt failed with '{cookie_name}': {str(cookie_first_error)[:150]}")
+        logger.warning(f"Cookie-first attempts failed for '{query[:100]}'. Falling back to no-cookie fetch.")
+
     try:
-        # First attempt: no cookies
         logger.info(f"Fetching info for '{query[:100]}' (no cookies).")
         return await run_ydl_with_low_priority(ydl_opts, query)
     except yt_dlp.utils.DownloadError as e:
@@ -2950,7 +2979,10 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
             
             cookies_to_try = AVAILABLE_COOKIES.copy()
             if not cookies_to_try:
-                logger.error("No cookie files are available. Set YOUTUBE_COOKIES or add cookies_1.txt...cookies_5.txt.")
+                logger.error(
+                    "No cookie files are available. Set YOUTUBE_COOKIES / YOUTUBE_COOKIES_B64, "
+                    "or add cookies_1.txt...cookies_5.txt."
+                )
                 raise e
             random.shuffle(cookies_to_try) # Shuffle to distribute load/bans
 
