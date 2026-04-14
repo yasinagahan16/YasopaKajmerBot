@@ -111,7 +111,13 @@ if _lyricsgenius_import_error is not None:
     genius = None
     logger.warning(f"lyricsgenius import failed ({_lyricsgenius_import_error}). /lyrics and fallback will not work.")
 elif GENIUS_TOKEN and GENIUS_TOKEN != "YOUR_GENIUS_TOKEN_HERE":
-    genius = lyricsgenius.Genius(GENIUS_TOKEN, verbose=False, remove_section_headers=True)
+    try:
+        genius = lyricsgenius.Genius(GENIUS_TOKEN, remove_section_headers=True)
+    except TypeError:
+        # Backward/forward compatibility across lyricsgenius constructor signatures.
+        genius = lyricsgenius.Genius(GENIUS_TOKEN)
+        if hasattr(genius, "remove_section_headers"):
+            genius.remove_section_headers = True
     logger.info("LyricsGenius client initialized.")
 else:
     genius = None
