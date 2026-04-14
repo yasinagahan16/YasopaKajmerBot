@@ -2942,6 +2942,7 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
     Fetches video info using yt-dlp, with a robust retry mechanism for age-restricted content.
     This is the new universal function for all online fetching.
     """
+    requested_impersonate = os.getenv("YTDLP_IMPERSONATE", "").strip()
     base_ydl_opts = {
         "format": "bestaudio[acodec=opus]/bestaudio/best",
         "quiet": True,
@@ -2950,7 +2951,6 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
         "socket_timeout": 20,
         "retries": 5,
         "extractor_retries": 5,
-        "impersonate": os.getenv("YTDLP_IMPERSONATE", "chrome"),
         "http_headers": {
             "User-Agent": os.getenv(
                 "YTDLP_USER_AGENT",
@@ -2960,6 +2960,8 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
             )
         },
     }
+    if requested_impersonate:
+        base_ydl_opts["impersonate"] = requested_impersonate
     if YTDLP_EXTRACTOR_ARGS:
         base_ydl_opts["extractor_args"] = YTDLP_EXTRACTOR_ARGS
     ydl_opts = {**base_ydl_opts, **(ydl_opts_override or {})}
@@ -2972,14 +2974,28 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
                 logger.info(f"Fetching info for '{query[:100]}' (cookie-first: {cookie_name}).")
                 return await run_ydl_with_low_priority(ydl_opts, query, specific_cookie_file=cookie_name)
             except yt_dlp.utils.DownloadError as cookie_first_error:
-                logger.warning(f"Cookie-first attempt failed with '{cookie_name}': {str(cookie_first_error)[:150]}")
+                cookie_first_error_str = str(cookie_first_error)
+                if "impersonate target" in cookie_first_error_str.lower() and "not available" in cookie_first_error_str.lower():
+                    logger.warning("Configured YTDLP_IMPERSONATE target is not available. Retrying without impersonate.")
+                    ydl_opts.pop("impersonate", None)
+                    try:
+                        return await run_ydl_with_low_priority(ydl_opts, query, specific_cookie_file=cookie_name)
+                    except yt_dlp.utils.DownloadError as no_impersonate_error:
+                        logger.warning(f"Retry without impersonate failed: {str(no_impersonate_error)[:150]}")
+                logger.warning(f"Cookie-first attempt failed with '{cookie_name}': {cookie_first_error_str[:150]}")
         logger.warning(f"Cookie-first attempts failed for '{query[:100]}'. Falling back to no-cookie fetch.")
 
     try:
         logger.info(f"Fetching info for '{query[:100]}' (no cookies).")
         return await run_ydl_with_low_priority(ydl_opts, query)
     except yt_dlp.utils.DownloadError as e:
-        error_str = str(e).lower()
+        error_full = str(e)
+        error_lower = error_full.lower()
+        if "impersonate target" in error_lower and "not available" in error_lower:
+            logger.warning("Configured YTDLP_IMPERSONATE target is not available. Retrying no-cookie request without impersonate.")
+            ydl_opts.pop("impersonate", None)
+            return await run_ydl_with_low_priority(ydl_opts, query)
+        error_str = error_lower
         cookie_required_error = (
             "sign in to confirm your age" in error_str
             or "age-restricted" in error_str
