@@ -2,6 +2,9 @@
 git+https://github.com/Rapptz/discord.py
 PyNaCl
 
+# Web server (for Render keep-alive)
+Flask
+
 # Audio/Video downloading
 yt_dlp
 
