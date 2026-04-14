@@ -36,6 +36,10 @@ import subprocess
 import shlex
 import sqlite3
 from dotenv import load_dotenv
+
+# Import keep-alive server
+from keep_alive import start_keep_alive
+
 load_dotenv()
 
 def init_db():
@@ -6616,6 +6620,12 @@ async def on_ready():
 # ==============================================================================
 
 if __name__ == '__main__':
+    # Start the keep-alive server in a background thread
+    start_keep_alive()
+    
+    # Initialize database
     init_db()
     bot.start_time = time.time()
+    
+    # Run the Discord bot with token from environment variables
     bot.run(os.getenv("DISCORD_TOKEN"))
