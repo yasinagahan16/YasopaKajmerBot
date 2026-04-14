@@ -43,6 +43,7 @@ import shlex
 import sqlite3
 import base64
 import binascii
+import signal
 from dotenv import load_dotenv
 
 # Import keep-alive server
@@ -1028,6 +1029,8 @@ class YasopaKajmerBot(commands.Bot):
     async def close(self):
         # Execute our save function before shutting down
         await save_all_states()
+        # Gracefully stop process pool workers to avoid Ctrl+C worker tracebacks
+        process_pool.shutdown(wait=False, cancel_futures=True)
         # Call the original close() method to shut down the bot normally
         await super().close()
 
@@ -3107,6 +3110,9 @@ def ydl_worker(ydl_opts, query, cookies_file=None):
     It changes its own priority and performs the yt-dlp extraction.
     It now handles exceptions internally to avoid pickling errors.
     """
+    # Prevent noisy worker KeyboardInterrupt traces when main process gets Ctrl+C.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
     # Change the priority of the current process
     p = psutil.Process()
     if platform.system() == "Windows":
