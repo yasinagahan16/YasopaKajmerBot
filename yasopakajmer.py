@@ -6691,4 +6691,19 @@ if __name__ == '__main__':
     if not discord_token:
         logger.error("DISCORD_TOKEN is missing. Set it in Render Environment before starting the bot.")
         sys.exit(1)
-    bot.run(discord_token)
+    max_startup_retries = int(os.getenv("DISCORD_STARTUP_RETRIES", "5"))
+    retry_delay_seconds = int(os.getenv("DISCORD_STARTUP_RETRY_DELAY", "15"))
+
+    for attempt in range(1, max_startup_retries + 1):
+        try:
+            bot.run(discord_token)
+            break
+        except discord.errors.DiscordServerError as e:
+            if attempt >= max_startup_retries:
+                logger.error(f"Discord API startup failed after {max_startup_retries} attempts: {e}")
+                raise
+            logger.warning(
+                f"Discord API unavailable on startup (attempt {attempt}/{max_startup_retries}): {e}. "
+                f"Retrying in {retry_delay_seconds}s..."
+            )
+            time.sleep(retry_delay_seconds)
