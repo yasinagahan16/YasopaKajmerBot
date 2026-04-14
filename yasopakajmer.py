@@ -2944,7 +2944,21 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
     """
     base_ydl_opts = {
         "format": "bestaudio[acodec=opus]/bestaudio/best",
-        "quiet": True, "no_warnings": True, "no_color": True, "socket_timeout": 15,
+        "quiet": True,
+        "no_warnings": True,
+        "no_color": True,
+        "socket_timeout": 20,
+        "retries": 5,
+        "extractor_retries": 5,
+        "impersonate": os.getenv("YTDLP_IMPERSONATE", "chrome"),
+        "http_headers": {
+            "User-Agent": os.getenv(
+                "YTDLP_USER_AGENT",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36",
+            )
+        },
     }
     if YTDLP_EXTRACTOR_ARGS:
         base_ydl_opts["extractor_args"] = YTDLP_EXTRACTOR_ARGS

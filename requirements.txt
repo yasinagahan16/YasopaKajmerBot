@@ -8,6 +8,8 @@ Flask
 
 # Audio/Video downloading
 yt_dlp
+curl-cffi
+certifi
 
 # Music platform APIs and scrapers
 spotipy
