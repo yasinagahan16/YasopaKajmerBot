@@ -41,6 +41,8 @@ import shutil
 import subprocess
 import shlex
 import sqlite3
+import base64
+import binascii
 from dotenv import load_dotenv
 
 # Import keep-alive server
@@ -178,9 +180,18 @@ def build_available_cookies() -> list[str]:
 
     # 2) One-shot cookie injected from environment (Render-friendly)
     env_cookie_content = os.getenv("YOUTUBE_COOKIES")
+    env_cookie_b64 = os.getenv("YOUTUBE_COOKIES_B64")
+    if not env_cookie_content and env_cookie_b64:
+        try:
+            env_cookie_content = base64.b64decode(env_cookie_b64).decode("utf-8")
+            logger.info("Decoded YouTube cookies from YOUTUBE_COOKIES_B64.")
+        except (binascii.Error, UnicodeDecodeError) as e:
+            logger.error(f"Could not decode YOUTUBE_COOKIES_B64: {e}")
     if env_cookie_content:
         env_cookie_path = os.path.join(script_dir, "cookies_env.txt")
         normalized = env_cookie_content.replace("\\r\\n", "\n").replace("\\n", "\n").strip()
+        if "netscape http cookie file" not in normalized.lower():
+            logger.warning("YOUTUBE_COOKIES does not look like Netscape cookie format; yt-dlp may reject it.")
         with open(env_cookie_path, "w", encoding="utf-8", newline="\n") as f:
             f.write(normalized + "\n")
         available.insert(0, "cookies_env.txt")
