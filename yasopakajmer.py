@@ -203,6 +203,8 @@ AVAILABLE_COOKIES = build_available_cookies()
 if not AVAILABLE_COOKIES:
     logger.warning("No cookie files found. YouTube bot-check/age-restricted videos may fail.")
 
+YTDLP_IMPERSONATE_DISABLED = False
+
 def build_ytdlp_extractor_args() -> dict | None:
     clients_raw = os.getenv("YOUTUBE_PLAYER_CLIENTS", "web,android")
     clients = [c.strip() for c in clients_raw.split(",") if c.strip()]
@@ -269,6 +271,10 @@ messages = {
     "connection_error": {
         "normal": "Error connecting to the voice channel.",
         "kawaii": "(╥﹏╥) I couldn't connect..."
+    },
+    "connection_error_davey_missing": {
+        "normal": "Voice support is unavailable because the 'davey' package is missing. Install dependencies in your active venv with: python -m pip install -r requirements.txt",
+        "kawaii": "(╥﹏╥) I can't join voice yet... 'davey' is missing. Please install requirements in this Python environment!"
     },
     "spotify_error": {
         "normal": "Error processing the Spotify link. It may be private, region-locked, or invalid.",
@@ -2942,6 +2948,7 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
     Fetches video info using yt-dlp, with a robust retry mechanism for age-restricted content.
     This is the new universal function for all online fetching.
     """
+    global YTDLP_IMPERSONATE_DISABLED
     requested_impersonate = os.getenv("YTDLP_IMPERSONATE", "chrome110").strip()
     base_ydl_opts = {
         "format": "bestaudio[acodec=opus]/bestaudio/best",
@@ -2960,7 +2967,7 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
             )
         },
     }
-    if requested_impersonate:
+    if requested_impersonate and not YTDLP_IMPERSONATE_DISABLED:
         base_ydl_opts["impersonate"] = requested_impersonate
     if YTDLP_EXTRACTOR_ARGS:
         base_ydl_opts["extractor_args"] = YTDLP_EXTRACTOR_ARGS
@@ -2977,6 +2984,7 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
                 cookie_first_error_str = str(cookie_first_error)
                 if "impersonate target" in cookie_first_error_str.lower() and "not available" in cookie_first_error_str.lower():
                     logger.warning("Configured YTDLP_IMPERSONATE target is not available. Retrying without impersonate.")
+                    YTDLP_IMPERSONATE_DISABLED = True
                     ydl_opts.pop("impersonate", None)
                     try:
                         return await run_ydl_with_low_priority(ydl_opts, query, specific_cookie_file=cookie_name)
@@ -2993,6 +3001,7 @@ async def fetch_video_info_with_retry(query: str, ydl_opts_override=None):
         error_lower = error_full.lower()
         if "impersonate target" in error_lower and "not available" in error_lower:
             logger.warning("Configured YTDLP_IMPERSONATE target is not available. Retrying no-cookie request without impersonate.")
+            YTDLP_IMPERSONATE_DISABLED = True
             ydl_opts.pop("impersonate", None)
             return await run_ydl_with_low_priority(ydl_opts, query)
         error_str = error_lower
@@ -3300,7 +3309,9 @@ async def ensure_voice_connection(interaction: discord.Interaction) -> discord.V
                 raise e
 
         except Exception as e:
-            embed = Embed(description=get_messages("connection_error", guild_id), color=0xFF9AA2 if is_kawaii else discord.Color.red())
+            error_text = str(e).lower()
+            message_key = "connection_error_davey_missing" if "davey library needed" in error_text else "connection_error"
+            embed = Embed(description=get_messages(message_key, guild_id), color=0xFF9AA2 if is_kawaii else discord.Color.red())
             if interaction.response.is_done():
                 await interaction.followup.send(embed=embed, ephemeral=True, silent=SILENT_MESSAGES)
             else:
@@ -4885,15 +4896,18 @@ async def play_autocomplete(interaction: discord.Interaction, current: str) -> l
     # --- FIN DE LA CORRECTION ---
 
     try:
-        # Uses a quick search on SoundCloud to get suggestions.
-        # "extract_flat": True is crucial for the search to be very fast.
+        # Use a short search and strict timeout; autocomplete must answer quickly
+        # or Discord invalidates the interaction (Unknown interaction 10062).
         sanitized_query = sanitize_query(current)
-        search_prefix = "scsearch10:" if IS_PUBLIC_VERSION else "ytsearch10:"
-        search_query = f"{search_prefix}{sanitized_query}" # Search for up to 10 results on SoundCloud
-        
-        info = await fetch_video_info_with_retry(
-            search_query, 
-            ydl_opts_override={"extract_flat": True, "noplaylist": True}
+        search_prefix = "scsearch5:" if IS_PUBLIC_VERSION else "ytsearch5:"
+        search_query = f"{search_prefix}{sanitized_query}"
+
+        info = await asyncio.wait_for(
+            fetch_video_info_with_retry(
+                search_query,
+                ydl_opts_override={"extract_flat": True, "noplaylist": True}
+            ),
+            timeout=2.2
         )
 
         choices = []
@@ -4924,6 +4938,9 @@ async def play_autocomplete(interaction: discord.Interaction, current: str) -> l
         
         return choices
 
+    except asyncio.TimeoutError:
+        logger.debug(f"Autocomplete timed out for '{current[:60]}'.")
+        return []
     except Exception as e:
         logger.error(f"Autocomplete search for '{current}' failed: {e}")
         return [] # Returns an empty list on error
